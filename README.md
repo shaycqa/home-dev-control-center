@@ -13,10 +13,14 @@ routine work practical from an iPhone.
 - Live CPU, RAM, swap, disk, load, uptime, network and available temperature sensors.
 - Configurable warning/critical thresholds; missing sensors remain unavailable.
 - Development server discovery with PID, working directory, ports and resource use.
-- Private app links, graceful Stop, confirmed Restart/Force Kill and process details.
+- Private app links open in new tabs, graceful Stop, confirmed Restart/Force Kill and process details.
 - Git-aware project discovery, package scripts and configurable project commands.
 - File tree, breadcrumbs, search, sorting, upload/download, CRUD, preview and editing.
 - Real PTYs with xterm.js; persistent tmux sessions, multiple tabs and mobile shortcuts.
+- Compact Claude / Codex / Dev / Git / System / Docker command tabs, including session resume/fork.
+- Dev commands use project scripts and npm/pnpm/yarn/bun declarations or lockfiles.
+- iPhone terminal actions follow the keyboard; Paste reads the clipboard directly.
+- Read-only Text / Copy snapshots include all available tmux/browser scrollback and Copy All.
 - Agent/process/session views, favorites and configurable one-tap command presets.
 - Retained terminal/process logs, live refresh, search, pause and bounded history.
 - Optional Docker container actions, logs, terminals and private exposed-port links.

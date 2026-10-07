@@ -1440,16 +1440,7 @@ dd {
     font-size: 9px;
     min-height: 34px;
   }
-  .terminal-toolbar .btn:first-child {
-    font-size: 0;
-    gap: 0;
-  }
-  .terminal-toolbar .btn:first-child svg {
-    width: 15px;
-  }
   .shortcut-bar {
-    position: sticky;
-    bottom: 0;
     gap: 5px;
   }
   .shortcut-bar button {
@@ -1548,5 +1539,104 @@ dd {
   }
   .filemanager .wx-sidebar {
     max-width: 100px;
+  }
+}
+
+.command-categories {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.command-categories button {
+  flex: 0 0 auto;
+  padding: 10px 9px;
+  min-height: 44px;
+  font-size: 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+}
+.command-categories button[aria-selected="true"] {
+  color: #abf5b7;
+  border-bottom-color: #abf5b7;
+}
+.command-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.command-buttons .btn {
+  min-height: 44px;
+  flex-wrap: wrap;
+}
+.command-buttons code {
+  font-size: 10px;
+  color: var(--muted);
+}
+.command-project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.command-project select {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+}
+.terminal-actions.keyboard-open {
+  position: fixed;
+  z-index: 105;
+  background: #171c23;
+  box-shadow: 0 -3px 12px #0006;
+}
+.terminal-actions.keyboard-open .shortcut-bar {
+  padding-bottom: 9px;
+}
+.terminal-text-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.terminal-text-modal .section-top {
+  margin-bottom: 0;
+}
+.terminal-text-modal > .btn {
+  align-self: flex-start;
+}
+.terminal-plain-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  min-height: 80px;
+  margin: 0;
+  padding: 12px;
+  background: #0b0e12;
+  font:
+    13px/1.5 "SFMono-Regular",
+    Consolas,
+    monospace;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  touch-action: auto;
+}
+@media (max-width: 760px) {
+  .terminal-toolbar {
+    flex-wrap: wrap;
+  }
+  .terminal-toolbar .btn {
+    min-height: 44px;
+    font-size: 11px;
+  }
+  .command-project select {
+    font-size: 16px;
+  }
+  .terminal-text-modal {
+    padding: 16px;
+    max-height: 85dvh;
   }
 }

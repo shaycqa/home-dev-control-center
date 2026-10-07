@@ -250,7 +250,10 @@ function App() {
     if (p.confirm && !confirm(`Run ${p.label}?\n${p.command}`)) return;
     const useCurrent = p.target === "current" && active;
     const s = await api(`/presets/${p.id}/run`, {
-      cwd: fileRoot || state.config.roots[0],
+      cwd:
+        state.sessions?.find((s) => s.id === active)?.cwd ||
+        fileRoot ||
+        state.config.roots[0],
       session: useCurrent ? active : undefined,
       confirm: true,
     });
@@ -796,34 +799,14 @@ function App() {
               <h2>One-tap commands</h2>
               <span className="muted">Output opens in a real terminal</span>
             </div>
-            <div className="preset-groups">
-              {[...new Set(state?.presets?.map((p) => p.group))].map(
-                (group) => (
-                  <section key={group}>
-                    <h3>{group}</h3>
-                    <div className="favorite-row">
-                      {state.presets
-                        .filter((p) => p.group === group)
-                        .map((p) => (
-                          <Button
-                            key={p.id}
-                            title={p.command}
-                            onClick={() => act(() => runPreset(p))}
-                          >
-                            {p.icon && p.icon !== "terminal" ? (
-                              <span>{p.icon}</span>
-                            ) : (
-                              <Play size={13} />
-                            )}{" "}
-                            {p.label}
-                            {p.confirm && <ShieldCheck size={12} />}
-                          </Button>
-                        ))}
-                    </div>
-                  </section>
-                ),
-              )}
-            </div>
+            <QuickCommands
+              presets={state?.presets || []}
+              projects={projects}
+              cwd={sessions.find((s) => s.id === active)?.cwd || fileRoot}
+              act={act}
+              runPreset={runPreset}
+              terminal={terminal}
+            />
           </div>
           <footer className="page-footer">
             <span>
@@ -1227,9 +1210,17 @@ function Projects({ projects, actions: a, sessions, logSources = [] }) {
                     <Button
                       onClick={() =>
                         a.act(async () => {
+                          if (
+                            k === "install" &&
+                            !confirm(
+                              `Install dependencies for ${p.name}?\n${v}`,
+                            )
+                          )
+                            return;
                           const s = await api("/projects/action", {
                             project: p.path,
                             action: k,
+                            confirm: k === "install",
                           });
                           await a.terminal(null, s);
                         })
@@ -1269,6 +1260,130 @@ function Projects({ projects, actions: a, sessions, logSources = [] }) {
     </>
   );
 }
+function QuickCommands({ presets, projects, cwd, act, runPreset, terminal }) {
+  const [category, setCategory] = useState("Claude"),
+    [selectedProject, setSelectedProject] = useState("");
+  const group = (p) =>
+    ["Tests", "Development"].includes(p.group) ? "Dev" : p.group || "System";
+  const categories = [
+    ...new Set([
+      "Claude",
+      "Codex",
+      "Dev",
+      "Git",
+      "System",
+      "Docker",
+      ...presets.map(group),
+    ]),
+  ];
+  const inferred = projects
+    .filter((p) => cwd === p.path || cwd?.startsWith(p.path + "/"))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  const project =
+    projects.find((p) => p.path === selectedProject) || inferred || projects[0];
+  return (
+    <div className="quick-commands">
+      <div
+        className="command-categories"
+        role="tablist"
+        aria-label="Command categories"
+      >
+        {categories.map((c) => (
+          <button
+            key={c}
+            role="tab"
+            id={`command-tab-${c}`}
+            aria-selected={category === c}
+            aria-controls="command-panel"
+            onClick={() => setCategory(c)}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+      <section
+        id="command-panel"
+        role="tabpanel"
+        aria-labelledby={`command-tab-${category}`}
+      >
+        {category === "Dev" && (
+          <>
+            <label className="command-project">
+              Project
+              <select
+                aria-label="Quick command project"
+                value={project?.path || ""}
+                onChange={(e) => setSelectedProject(e.target.value)}
+              >
+                {!projects.length && (
+                  <option value="">No discovered projects</option>
+                )}
+                {projects.map((p) => (
+                  <option key={p.path} value={p.path}>
+                    {p.name} · {p.manager}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="command-buttons">
+              {Object.entries(project?.commands || {})
+                .filter(([, cmd]) => cmd)
+                .map(([action, command]) => (
+                  <Button
+                    key={action}
+                    title={command}
+                    onClick={() =>
+                      act(async () => {
+                        if (
+                          action === "install" &&
+                          !confirm(
+                            `Install dependencies for ${project.name}?\n${command}`,
+                          )
+                        )
+                          return;
+                        const s = await api("/projects/action", {
+                          project: project.path,
+                          action,
+                          confirm: action === "install",
+                        });
+                        await terminal(null, s);
+                      })
+                    }
+                  >
+                    {action === "dev" ? "Start dev server" : action}
+                    <code>{command}</code>
+                  </Button>
+                ))}
+            </div>
+            {!Object.values(project?.commands || {}).some(Boolean) && (
+              <p className="muted">
+                No detected scripts. Configure commands in Projects.
+              </p>
+            )}
+          </>
+        )}
+        <div className="command-buttons">
+          {presets
+            .filter(
+              (p) =>
+                group(p) === category &&
+                !["npm-install", "pnpm-install"].includes(p.id),
+            )
+            .map((p) => (
+              <Button
+                key={p.id}
+                title={p.command}
+                onClick={() => act(() => runPreset(p))}
+              >
+                {p.label}
+                {p.confirm && <ShieldCheck size={12} />}
+              </Button>
+            ))}
+        </div>
+      </section>
+    </div>
+  );
+}
 function TerminalPanel({ id, visible, shortcuts, act }) {
   const holder = useRef(),
     termRef = useRef(),
@@ -1277,7 +1392,59 @@ function TerminalPanel({ id, visible, shortcuts, act }) {
     [full, setFull] = useState(false),
     [ctrl, setCtrl] = useState(false),
     [reconnect, setReconnect] = useState(0);
-  const fitRef = useRef();
+  const fitRef = useRef(),
+    actionRef = useRef(),
+    copyRef = useRef();
+  const [keyboardPosition, setKeyboardPosition] = useState(null),
+    [textView, setTextView] = useState(null),
+    [textLoading, setTextLoading] = useState(false);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => {
+      const focused = holder.current?.contains(document.activeElement);
+      const keyboard =
+        Math.max(window.innerHeight, document.documentElement.clientHeight) -
+          viewport.height >
+        100;
+      setKeyboardPosition(
+        visible &&
+          textView === null &&
+          focused &&
+          keyboard &&
+          viewport.scale < 1.1
+          ? {
+              top:
+                viewport.offsetTop +
+                viewport.height -
+                (actionRef.current?.offsetHeight || 62),
+              left: viewport.offsetLeft,
+              width: viewport.width,
+            }
+          : null,
+      );
+    };
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    document.addEventListener("focusin", update);
+    document.addEventListener("focusout", update);
+    const observer = new ResizeObserver(update);
+    if (actionRef.current) observer.observe(actionRef.current);
+    update();
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", update);
+      document.removeEventListener("focusout", update);
+      observer.disconnect();
+    };
+  }, [visible, textView, ctrl, id]);
+  useEffect(() => {
+    if (textView !== null) copyRef.current?.focus();
+  }, [textView !== null, textLoading]);
+  useEffect(() => {
+    setTextView(null);
+  }, [id]);
   useEffect(() => {
     if (!holder.current) return;
     const term = new XTerm({
@@ -1396,17 +1563,57 @@ function TerminalPanel({ id, visible, shortcuts, act }) {
           <Button
             onClick={() =>
               act(async () => {
-                const text = termRef.current.getSelection();
-                if (text) await navigator.clipboard.writeText(text);
-                else {
-                  const t = prompt("Text to paste");
-                  if (t !== null) send(t);
+                const term = termRef.current;
+                const readBuffer = (buffer) => {
+                  const lines = [];
+                  for (let i = 0; i < buffer.length; i++) {
+                    const line = buffer.getLine(i);
+                    if (!line) continue;
+                    if (line.isWrapped && lines.length)
+                      lines[lines.length - 1] += line.translateToString(true);
+                    else lines.push(line.translateToString(true));
+                  }
+                  return lines.join("\n").trimEnd();
+                };
+                const normal = readBuffer(term.buffer.normal);
+                const alternate =
+                  term.buffer.active.type === "alternate"
+                    ? readBuffer(term.buffer.active)
+                    : "";
+                const browserText = [normal, alternate]
+                  .filter(Boolean)
+                  .join("\n\n");
+                term.blur();
+                setTextView(browserText);
+                setTextLoading(true);
+                try {
+                  const history = await api(
+                    `/sessions/${encodeURIComponent(id)}/text`,
+                  );
+                  const parts = [
+                    history.text,
+                    history.alternate,
+                    browserText,
+                  ].filter(Boolean);
+                  const unique = parts.filter(
+                    (part, i) =>
+                      !parts.some(
+                        (other, j) =>
+                          j !== i &&
+                          other.includes(part) &&
+                          (other.length > part.length || j < i),
+                      ),
+                  );
+                  if (term === termRef.current)
+                    setTextView(unique.join("\n\n"));
+                } finally {
+                  if (term === termRef.current) setTextLoading(false);
                 }
               })
             }
           >
             <Copy size={14} />
-            Copy / paste
+            Text / Copy
           </Button>
           <Button
             onClick={() => setReconnect((n) => n + 1)}
@@ -1420,26 +1627,119 @@ function TerminalPanel({ id, visible, shortcuts, act }) {
         </div>
       </div>
       <div ref={holder} className="terminal-host" />
-      <div className="shortcut-bar">
-        {shortcuts.map((k, i) => (
-          <button
-            key={i}
-            className={k === "Ctrl" && ctrl ? "pressed" : ""}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => key(k)}
+      <div
+        className="terminal-actions-placeholder"
+        style={
+          keyboardPosition
+            ? { height: actionRef.current?.offsetHeight }
+            : undefined
+        }
+      >
+        <div
+          ref={actionRef}
+          className={
+            "terminal-actions" + (keyboardPosition ? " keyboard-open" : "")
+          }
+          style={keyboardPosition || undefined}
+        >
+          <div className="shortcut-bar">
+            <button
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() =>
+                act(async () => {
+                  if (!navigator.clipboard?.readText)
+                    throw new Error(
+                      "Clipboard access unavailable. Use the keyboard’s Paste action.",
+                    );
+                  const term = termRef.current;
+                  const text = await navigator.clipboard.readText();
+                  if (
+                    term !== termRef.current ||
+                    socket.current?.readyState !== 1
+                  )
+                    throw new Error(
+                      "Terminal disconnected. Reconnect before pasting.",
+                    );
+                  term.paste(text);
+                  term.focus();
+                })
+              }
+            >
+              Paste
+            </button>
+            {shortcuts.map((k, i) => (
+              <button
+                key={i}
+                className={k === "Ctrl" && ctrl ? "pressed" : ""}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => key(k)}
+              >
+                {k === "●" ? "Ctrl+C" : k}
+              </button>
+            ))}
+          </div>
+          <div className="ctrl-keys">
+            {ctrl && "Ctrl enabled — tap a letter: "}
+            {(ctrl ? ["a", "c", "d", "e", "l", "r", "z"] : []).map((k) => (
+              <Button
+                key={k}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => key(k)}
+              >
+                {k.toUpperCase()}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {textView !== null && (
+        <div className="modal-backdrop" onClick={() => setTextView(null)}>
+          <section
+            className="modal terminal-text-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="terminal-text-title"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setTextView(null);
+              if (e.key === "Tab") {
+                e.preventDefault();
+                const buttons = [...e.currentTarget.querySelectorAll("button")];
+                const index = buttons.indexOf(document.activeElement);
+                buttons[
+                  (index + (e.shiftKey ? -1 : 1) + buttons.length) %
+                    buttons.length
+                ]?.focus();
+              }
+            }}
           >
-            {k === "●" ? "Ctrl+C" : k}
-          </button>
-        ))}
-      </div>
-      <div className="ctrl-keys">
-        {ctrl && "Ctrl enabled — tap a letter: "}
-        {(ctrl ? ["a", "c", "d", "e", "l", "r", "z"] : []).map((k) => (
-          <Button key={k} onClick={() => key(k)}>
-            {k.toUpperCase()}
-          </Button>
-        ))}
-      </div>
+            <div className="section-top">
+              <h2 id="terminal-text-title">Terminal text</h2>
+              <Button
+                onClick={() => setTextView(null)}
+                aria-label="Close terminal text"
+              >
+                <X size={16} />
+              </Button>
+            </div>
+            <p className="muted">
+              Read-only snapshot of all available tmux and browser scrollback.
+            </p>
+            <button
+              ref={copyRef}
+              className="btn"
+              disabled={textLoading}
+              onClick={() => act(() => navigator.clipboard.writeText(textView))}
+            >
+              Copy All
+            </button>
+            {textLoading && <p role="status">Loading full scrollback…</p>}
+            <pre className="terminal-plain-text" tabIndex={0}>
+              {textView}
+            </pre>
+          </section>
+        </div>
+      )}
       <div className="terminal-info">
         Closing this view detaches the terminal. Your tmux session keeps
         running.

@@ -49,7 +49,7 @@ export async function fixture() {
   );
   await fs.writeFile(
     projects + "/demo-project/server.cjs",
-    "console.log('fixture project');",
+    `require("http").createServer((q,s)=>s.end("fixture project")).listen(${await freePort()}, "127.0.0.1");`,
   );
   await fs.writeFile(
     configDir + "/config.json",

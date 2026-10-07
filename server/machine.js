@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { projectCommands } from "./project-commands.js";
 import os from "node:os";
 import path from "node:path";
 import { run, config, uid, directory, fail, ignored } from "./core.js";
@@ -220,13 +221,7 @@ export async function projects(procs = [], servers = []) {
         git(["log", "-1", "--format=%h %s (%cr)"]),
         git(["remote", "get-url", "origin"]),
       ]);
-      const manager = (await fs.stat(p + "/pnpm-lock.yaml").catch(() => null))
-        ? "pnpm"
-        : (await fs.stat(p + "/yarn.lock").catch(() => null))
-          ? "yarn"
-          : (await fs.stat(p + "/bun.lockb").catch(() => null))
-            ? "bun"
-            : "npm";
+      const { manager, commands } = await projectCommands(p, pkg);
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
       data.push({
         name: pkg.name || path.basename(p),
@@ -247,18 +242,7 @@ export async function projects(procs = [], servers = []) {
                 : "Python",
         manager,
         commands: {
-          ...Object.fromEntries(
-            Object.keys(pkg.scripts || {})
-              .filter((k) =>
-                ["dev", "start", "test", "build", "lint", "typecheck"].includes(
-                  k,
-                ),
-              )
-              .map((k) => [
-                k,
-                `${manager} ${manager === "npm" ? "run " : ""}${k}`,
-              ]),
-          ),
+          ...commands,
           ...(config.projectCommands[p] || {}),
         },
       });

@@ -40,7 +40,13 @@ try {
           await page
             .getByRole("button", { name: "Navigation", exact: true })
             .click();
-        await page.getByRole("button", { name, exact: true }).first().click();
+        await page
+          .getByRole("button", {
+            name: mobile && name === "Dashboard" ? "Home" : name,
+            exact: true,
+          })
+          .first()
+          .click();
         await page
           .getByRole("heading", {
             name: name === "Dashboard" ? "Machine overview" : name,
@@ -132,6 +138,190 @@ try {
               .text,
           ),
         "Real browser PTY output",
+      );
+      // Category tabs show only one set of commands on desktop and iPhone.
+      await page.getByRole("tab", { name: "Claude", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Continue last", exact: true })
+        .waitFor();
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Git Status", exact: true })
+          .isVisible(),
+        false,
+      );
+      await page.getByRole("tab", { name: "Codex", exact: true }).click();
+      assert.equal(
+        await page
+          .getByRole("button", { name: "All sessions", exact: true })
+          .isVisible(),
+        true,
+      );
+      await page.getByRole("tab", { name: "Dev", exact: true }).click();
+      await page
+        .getByLabel("Quick command project")
+        .selectOption(f.projects + "/demo-project");
+      assert.equal(
+        await page
+          .getByRole("button", { name: /Start dev server/ })
+          .isVisible(),
+        true,
+      );
+      assert.equal(
+        await page
+          .locator(".command-buttons")
+          .getByText("npm run dev", { exact: true })
+          .count(),
+        1,
+      );
+
+      // Exercise direct paste under a Safari-compatible user gesture; no prompt.
+      await page.evaluate(() => {
+        window.hdcClipboard = "printf 'direct-paste-%s\\n' OK";
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            readText: async () => window.hdcClipboard,
+            writeText: async (text) => {
+              window.hdcClipboard = text;
+            },
+          },
+        });
+      });
+      await page.getByRole("button", { name: "Paste", exact: true }).click();
+      await page.keyboard.press("Enter");
+      await waitFor(async () =>
+        /direct-paste-OK/.test(
+          (await f.api("/logs?session=" + encodeURIComponent(sessionId))).data
+            .text,
+        ),
+      );
+      await page.locator(".xterm-helper-textarea").focus();
+      await page.keyboard.type(
+        "for i in $(seq 1 1800); do printf 'copy-history-%s\\n' \"$i\"; done",
+      );
+      await page.keyboard.press("Enter");
+      await waitFor(async () =>
+        /copy-history-1800/.test(
+          (await f.api("/sessions/" + encodeURIComponent(sessionId) + "/text"))
+            .data.text,
+        ),
+      );
+      await page
+        .getByRole("button", { name: "Text / Copy", exact: true })
+        .click();
+      const copyAll = page.getByRole("button", {
+        name: "Copy All",
+        exact: true,
+      });
+      await copyAll.waitFor();
+      await waitFor(() => copyAll.isEnabled());
+      const plain = await page.locator(".terminal-plain-text").innerText();
+      assert.match(plain, /copy-history-1\n/);
+      assert.match(plain, /copy-history-1800/);
+      assert.equal(
+        await page
+          .locator(".terminal-plain-text")
+          .evaluate((el) => getComputedStyle(el).userSelect),
+        "text",
+      );
+      await copyAll.click();
+      assert.equal(await page.evaluate(() => window.hdcClipboard), plain);
+      await page.getByRole("button", { name: "Close terminal text" }).click();
+      await page.locator(".xterm-helper-textarea").focus();
+      if (mobile) {
+        await page.evaluate(() => {
+          const viewport = window.visualViewport;
+          window.hdcViewportHeight = viewport.height;
+          Object.defineProperty(viewport, "height", {
+            configurable: true,
+            value: viewport.height - 300,
+          });
+          viewport.dispatchEvent(new Event("resize"));
+        });
+        await page.locator(".terminal-actions.keyboard-open").waitFor();
+        const aligned = await page
+          .locator(".terminal-actions")
+          .evaluate((el) => {
+            const rect = el.getBoundingClientRect(),
+              v = visualViewport;
+            return (
+              Math.abs(rect.bottom - v.offsetTop - v.height) < 2 &&
+              getComputedStyle(el).position === "fixed"
+            );
+          });
+        assert.equal(
+          aligned,
+          true,
+          "Terminal action row follows keyboard viewport",
+        );
+        await page.getByRole("button", { name: "Ctrl", exact: true }).click();
+        await page
+          .locator(".ctrl-keys")
+          .getByRole("button", { name: "C", exact: true })
+          .click();
+        assert.equal(
+          await page
+            .locator(".xterm-helper-textarea")
+            .evaluate((el) => document.activeElement === el),
+          true,
+        );
+        await page.evaluate(() => {
+          Object.defineProperty(visualViewport, "height", {
+            configurable: true,
+            value: window.hdcViewportHeight,
+          });
+          visualViewport.dispatchEvent(new Event("resize"));
+        });
+        await page
+          .locator(".terminal-actions.keyboard-open")
+          .waitFor({ state: "hidden" });
+      }
+      await page.getByRole("button", { name: /Start dev server/ }).click();
+      const projectSessionId = await waitFor(async () => {
+        const id = await page.evaluate(
+          () => JSON.parse(localStorage.getItem("hdc-tabs")).at(-1).id,
+        );
+        return id !== sessionId && id;
+      });
+      await page.getByText("Attached", { exact: true }).waitFor();
+      await waitFor(async () =>
+        (await f.api("/state")).data.servers?.some(
+          (s) => s.cwd === f.projects + "/demo-project",
+        ),
+      );
+      await nav("Dashboard");
+      const controlUrl = page.url();
+      // The privileged tailnet exposure is covered by gateway/helper tests;
+      // intercept it here so browser checks never call the installed helper.
+      await page.route("**/api/process/*/expose", (route) =>
+        route.fulfill({ json: { url: f.origin + "/server-preview" } }),
+      );
+      await context.route("**/server-preview", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: "<p>Controlled server preview</p>",
+        }),
+      );
+      const openButton = page
+        .locator(".server-card")
+        .getByRole("button", { name: "Open", exact: true })
+        .first();
+      const [popup] = await Promise.all([
+        context.waitForEvent("page", { timeout: 10000 }),
+        mobile ? openButton.tap() : openButton.click(),
+      ]);
+      await popup.waitForURL((url) => url.pathname === "/server-preview");
+      assert.equal(
+        page.url(),
+        controlUrl,
+        "Opening a server preserves the Control Center page",
+      );
+      assert.equal(await popup.evaluate(() => window.opener === null), true);
+      await popup.close();
+      await f.api(
+        "/sessions/" + encodeURIComponent(projectSessionId) + "/terminate",
+        { confirm: true },
       );
       for (const name of ["Logs", "Processes", "Docker", "System", "Settings"])
         await nav(name);

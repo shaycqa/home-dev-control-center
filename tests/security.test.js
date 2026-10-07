@@ -409,6 +409,29 @@ test("real PTY tmux session survives browser detach and reconnect", async () => 
   const logs = await request("/logs?session=" + encodeURIComponent(session.id));
   assert.equal(logs.status, 200);
   assert.match(logs.data.text, /first-pty/);
+  // Capture more than the old 1500-line log limit and retain early output.
+  await attach(
+    "for i in $(seq 1 1800); do printf 'history-row-%s\\n' \"$i\"; done",
+    "history-row-1800",
+  );
+  const text = await request(
+    `/sessions/${encodeURIComponent(session.id)}/text`,
+  );
+  assert.equal(text.status, 200);
+  assert.match(text.data.text, /history-row-1\n/);
+  assert.match(text.data.text, /history-row-1800/);
+  assert.doesNotMatch(text.data.text, /\x1b\[/);
+  assert.equal((await request("/sessions/invalid/text")).status, 400);
+  assert.equal(
+    (
+      await request(
+        `/sessions/${encodeURIComponent(session.id)}/text`,
+        undefined,
+        { Cookie: "" },
+      )
+    ).status,
+    401,
+  );
 });
 test("real development server discovery, PID identity protection and graceful stop", async () => {
   const script = path.join(root, "dev-server.cjs");
@@ -449,6 +472,15 @@ test("real project Git discovery, package commands, Start and Stop", async () =>
   assert.equal(project.branch, "main");
   assert.equal(project.dirty, false);
   assert.match(project.commands.dev, /npm run dev/);
+  assert.equal(
+    (
+      await request("/projects/action", {
+        project: projectRoot,
+        action: "install",
+      })
+    ).status,
+    400,
+  );
   const started = await request("/projects/action", {
     project: projectRoot,
     action: "dev",

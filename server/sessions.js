@@ -169,6 +169,23 @@ export async function sessionLog(id) {
     ]),
   };
 }
+export async function sessionText(id) {
+  sessionID(id);
+  if (!(await sessions()).some((s) => s.id === id))
+    fail("Session no longer exists", 404);
+  // '-' includes all history retained by tmux. Join wrapped lines and omit
+  // ANSI styling; capture-pane never sends input or enters tmux copy mode.
+  const args = ["capture-pane", "-p", "-J", "-t", id, "-S", "-", "-E", "-"];
+  const text = await run("tmux", args, { maxBuffer: 64 * 1024 * 1024 });
+  const alternate = await run(
+    "tmux",
+    ["capture-pane", "-p", "-J", "-a", "-t", id],
+    {
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  ).catch(() => "");
+  return { text, alternate };
+}
 export async function tail(file) {
   const h = await fs.open(file, "r").catch(() => null);
   if (!h) return "";

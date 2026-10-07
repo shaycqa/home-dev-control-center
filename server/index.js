@@ -37,6 +37,7 @@ import {
   sendCommand,
   sessionID,
   sessionLog,
+  sessionText,
   metadata,
   tail,
   restartExternal,
@@ -115,6 +116,22 @@ let snapshot = { loading: true },
       command: "pgrep -a node",
     },
   ]);
+const agentPresets = [
+  ["claude-open", "Start / open", "Claude", "claude"],
+  ["claude-continue", "Continue last", "Claude", "claude --continue"],
+  ["claude-resume", "Choose session", "Claude", "claude --resume"],
+  ["claude-fork", "Fork last", "Claude", "claude --continue --fork-session"],
+  ["claude-help", "CLI help", "Claude", "claude --help"],
+  ["codex-open", "Start / open", "Codex", "codex"],
+  ["codex-resume-last", "Continue last", "Codex", "codex resume --last"],
+  ["codex-resume", "Choose session", "Codex", "codex resume"],
+  ["codex-resume-all", "All sessions", "Codex", "codex resume --all"],
+  ["codex-fork", "Fork last", "Codex", "codex fork --last"],
+  ["codex-help", "CLI help", "Codex", "codex --help"],
+].map(([id, label, group, command]) => ({ id, label, group, command }));
+for (const preset of agentPresets)
+  if (!presets.some((p) => p.id === preset.id)) presets.push(preset);
+
 function token() {
   return crypto.randomBytes(32).toString("base64url");
 }
@@ -417,6 +434,9 @@ app.post("/api/sessions", async (req, res) => {
   await audit(req.user, "session.created", { id: s.id, cwd: s.cwd });
   res.json(s);
 });
+app.get("/api/sessions/:id/text", async (req, res) => {
+  res.json(await sessionText(req.params.id));
+});
 app.post("/api/sessions/:id/:action", async (req, res) => {
   const id = sessionID(req.params.id);
   if (req.params.action === "rename") {
@@ -441,6 +461,8 @@ app.post("/api/projects/action", async (req, res) => {
       "build",
       "lint",
       "typecheck",
+      "preview",
+      "install",
       "stop",
       "restart",
     ].includes(action)
@@ -448,6 +470,7 @@ app.post("/api/projects/action", async (req, res) => {
     fail("Invalid project action");
   const pr = snapshot.projects?.find((p) => p.path === project);
   if (!pr) fail("Discovered project required");
+  if (action === "install" && confirm !== true) fail("Confirmation required");
   if (["stop", "restart"].includes(action)) {
     if (confirm !== true) fail("Confirmation required");
     for (const s of await sessions())
