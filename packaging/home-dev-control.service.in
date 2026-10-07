@@ -1,0 +1,17 @@
+[Unit]
+Description=Home Dev Control Center
+After=network-online.target
+[Service]
+Type=simple
+WorkingDirectory=@SOURCE@
+ExecStart=@NODE@ @ENTRY@
+Environment=NODE_ENV=production
+Environment=@CONFIG@
+Environment=@DATA@
+Environment=@PATH@
+Restart=always
+RestartSec=3
+KillMode=process
+UMask=0077
+[Install]
+WantedBy=default.target

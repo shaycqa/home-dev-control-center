@@ -1,0 +1,27 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y tmux zsh
+      - run: python3 scripts/check-repository.py
+      - run: npm ci && npm rebuild node-pty esbuild
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run validate
+      - run: npm audit --audit-level=low
+      - run: npm audit signatures
+      - name: Secret scan
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          PATH="$(go env GOPATH)/bin:$PATH" npm run scan:secrets

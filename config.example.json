@@ -1,0 +1,42 @@
+{
+  "port": 4310,
+  "origin": "https://machine.example.ts.net",
+  "allowedUsers": [
+    "developer@example.com"
+  ],
+  "roots": [
+    "$HOME/projects"
+  ],
+  "projectRoots": [
+    "$HOME/projects"
+  ],
+  "thresholds": {
+    "cpu": 90,
+    "ram": 85,
+    "disk": 85,
+    "temperature": 80,
+    "criticalTemperature": 95,
+    "swap": 50
+  },
+  "shortcuts": [
+    "Ctrl",
+    "Esc",
+    "Tab",
+    "\u2191",
+    "\u2193",
+    "\u2190",
+    "\u2192",
+    "|",
+    "/",
+    "~",
+    "_",
+    ":",
+    ";"
+  ],
+  "favorites": [
+    "git-status",
+    "ports",
+    "disk"
+  ],
+  "projectCommands": {}
+}

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+python3 scripts/check-repository.py
+command -v gitleaks >/dev/null || { echo 'Install Gitleaks before committing.' >&2; exit 1; }
+gitleaks git --staged --redact --no-banner .
