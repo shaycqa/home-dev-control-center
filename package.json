@@ -10,7 +10,7 @@
     "test:browser": "node tests/browser.mjs",
     "test:install": "python3 -m unittest discover -s tests -p \"test_*.py\"",
     "validate": "npm test && npm run test:install && npm run build && npm run test:browser",
-    "scan:secrets": "gitleaks dir --redact --no-banner . && gitleaks git --redact --no-banner --log-opts=\"--all --full-history\" ."
+    "scan:secrets": "bash scripts/scan-secrets.sh"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.4",

@@ -1,0 +1,11 @@
+# Only filesystem scans use this config. Git/history/object scans use defaults.
+# Publication policy separately forbids tracking these generated directories.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reproducible dependency and bundle output; never published as source"
+paths = [
+  '''(?:^|/)dist/''',
+  '''(?:^|/)node_modules/''',
+]

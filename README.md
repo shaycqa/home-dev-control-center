@@ -372,6 +372,10 @@ git config core.hooksPath .githooks
 ```
 
 `npm run validate` runs backend, installer, build and browser checks together.
+The filesystem secret gate excludes only generated bundles/dependencies, whose
+upstream key-map code can trigger false positives. Tracked-file policy prevents
+publishing those directories. Git history and every Git object (including
+lockfiles/metadata) are scanned without that generated-output exclusion.
 Tests create disposable files/projects/processes and a dedicated tmux socket.
 Validation additionally requires the OpenSSL CLI and `systemd-analyze`. Zsh is
 tested when installed; Bash and the other checks always run.
